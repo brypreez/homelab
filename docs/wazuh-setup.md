@@ -197,3 +197,17 @@ systemctl start wazuh-agent
 - [ ] Ansible playbook for automated agent deployment and ossec.conf management
 - [ ] Alert tuning — reduce false positives on K8s nodes
 - [ ] Integration with Grafana for unified observability
+
+---
+
+## Lessons Learned & Automation Goals
+
+| Issue | Manual Fix | Automation Goal |
+|-------|-----------|-----------------|
+| IPv4/IPv6 protocol stack mismatch | Manual `opensearch_dashboards.yml` edit | Ansible manages config with explicit IPv4 binding — self-healing |
+| Agent version skew after manager upgrade | Manual version check + upgrade sequence | Ansible enforces version parity: manager upgraded first, agents second |
+| SSL certs wiped after package upgrade | Manual cert regeneration and deployment | Ansible cert management playbook with idempotent deployment |
+| Password reset required after reinstall | Manual `wazuh-passwords-tool.sh` run | Ansible vault stores credentials, playbook handles rotation |
+| Agent registration requires manual auth | `agent-auth` per node | Ansible playbook automates bulk agent registration |
+
+**Phase 2 Priority:** Ansible will be the single source of truth for all Wazuh configuration. The first playbook will manage `ossec.conf` across all 8 endpoints and `opensearch_dashboards.yml` on the Wazuh LXC — eliminating configuration drift and providing self-healing infrastructure.

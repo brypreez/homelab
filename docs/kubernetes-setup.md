@@ -162,3 +162,16 @@ All pods should show `Running` or `Completed`.
 - [ ] Wazuh — SIEM and security monitoring
 - [ ] Ingress controller (nginx)
 - [ ] cert-manager — TLS certificate management
+
+---
+
+## Lessons Learned & Automation Goals
+
+| Issue | Manual Fix | Automation Goal |
+|-------|-----------|-----------------|
+| Cloud-init MAC mismatch on clone | Manual netplan edit per VM | Terraform Proxmox provider provisions VMs with correct MACs |
+| SSH password auth blocked by cloud-init | Manual override file edit | Ansible enforces SSH config across all VMs |
+| cloud-init overwriting netplan on reboot | Manual disable of cloud-init network config | Baked into Terraform cloud-init user-data |
+| kubeadm join token expiry | Regenerate token manually | Ansible playbook automates node join process |
+
+**Phase 2 Priority:** Terraform with the Telmate/Proxmox provider will replace the manual VM cloning and cloud-init configuration process. All K8s node provisioning will be defined as code and version-controlled.

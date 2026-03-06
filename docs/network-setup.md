@@ -158,3 +158,16 @@ Pi-hole runs on LXC 100 at `192.168.10.2` and serves DNS for all VLANs.
 
 > Default listening mode is `LOCAL` which only responds to the local subnet.
 > Must be changed to `ALL` in `/etc/pihole/pihole.toml` for cross-VLAN DNS to work.
+
+---
+
+## Lessons Learned & Automation Goals
+
+| Issue | Manual Fix | Automation Goal |
+|-------|-----------|-----------------|
+| GS308E management VLAN lockout | Factory reset + full reconfiguration | Terraform network state management |
+| Proxmox bridge not VLAN-aware | Manual `/etc/network/interfaces` edit | Ansible playbook for bridge config validation |
+| Corosync IPs not updated after migration | Manual `corosync.conf` edit | Terraform provisions nodes with static IPs from day one |
+| Pi-hole `LOCAL` listening mode | Manual `pihole.toml` edit | Ansible manages Pi-hole configuration |
+
+**Phase 2 Priority:** Ansible inventory and playbooks will replace all manual network configuration steps documented above, enabling repeatable, auditable infrastructure changes.

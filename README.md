@@ -2,7 +2,7 @@
 
 A self-built, production-grade homelab running a 3-node Proxmox cluster, VLAN-segmented network, 5-node Kubernetes HA cluster, and a full Wazuh SIEM/XDR security stack — built from scratch on consumer hardware and operated to a 99.9% uptime standard with strict change management protocols.
 
-> This lab is treated as a **Production Environment**. All changes follow a documented change management process, infrastructure is defined as code, and every major decision is version-controlled in this repository.
+> This lab is treated as a **Production Environment**. All changes follow a documented change management process, infrastructure is defined as code, and every major decision is version-controlled in this repository. Uptime target: 99.9%. All service modifications require a documented change window.
 
 ---
 
@@ -38,7 +38,7 @@ A self-built, production-grade homelab running a 3-node Proxmox cluster, VLAN-se
 
 ## 🔧 Proxmox Cluster
 
-3-node Proxmox VE cluster with VLAN-aware bridges on all nodes.
+3-node Proxmox VE cluster with VLAN-aware bridges on all nodes. All services configured with `Start at Boot` enabled — operated to 99.9% uptime with documented change management.
 
 | Node | IP | Role |
 |------|----|------|
@@ -47,9 +47,12 @@ A self-built, production-grade homelab running a 3-node Proxmox cluster, VLAN-se
 | enode-c | 192.168.40.12 | Secondary |
 
 **Running Services:**
-- LXC 100 — Pi-hole DNS (192.168.10.2, VLAN 10)
-- LXC 101 — Grafana + Prometheus (192.168.40.100, VLAN 40)
-- LXC 102 — Wazuh SIEM/XDR (192.168.40.20, VLAN 40)
+
+| LXC | Service | IP | VLAN | Uptime Target |
+|-----|---------|-----|------|---------------|
+| 100 | Pi-hole DNS | 192.168.10.2 | 10 | 99.9% |
+| 101 | Grafana + Prometheus | 192.168.40.100 | 40 | 99.9% |
+| 102 | Wazuh SIEM/XDR | 192.168.40.20 | 40 | 99.9% |
 
 ---
 
@@ -94,15 +97,20 @@ Wazuh 4.14.3 deployed on a dedicated LXC (192.168.40.20) monitoring all infrastr
 
 ## 🔥 Featured Troubleshooting
 
-### IPv4/IPv6 Loopback Conflict — Wazuh Dashboard ↔ Indexer
+### IPv4/IPv6 Protocol Stack Preference Conflict — Wazuh Dashboard ↔ Indexer
 
-**Symptom:** `ECONNREFUSED ::1:9200` — dashboard couldn't connect to indexer despite both services running.
+**Symptom:** `ECONNREFUSED ::1:9200` — dashboard couldn't connect to indexer despite both services running and passing health checks.
 
-**Root Cause:** The dashboard was resolving `localhost` to IPv6 (`::1`) while the Wazuh Indexer was bound to IPv4 (`127.0.0.1`). This caused a silent connection failure with no obvious error in standard service status checks.
+**Root Cause:** Modern Linux distributions follow RFC 6724, which gives IPv6 addresses higher precedence in the default address selection algorithm. When the dashboard resolved `localhost`, the OS returned `::1` (IPv6 loopback) rather than `127.0.0.1` (IPv4 loopback). The Wazuh Indexer (OpenSearch) was explicitly bound to `127.0.0.1` via `network.host`, creating a protocol stack mismatch that manifested as a silent connection refusal — not a firewall block, not a service failure.
 
-**Fix:** Updated `opensearch.hosts` in `/etc/wazuh-dashboard/opensearch_dashboards.yml` to explicitly use `https://127.0.0.1:9200` and set `opensearch.ssl.verificationMode: none` to bypass self-signed certificate verification on the loopback interface.
+**Fix:** Updated `opensearch.hosts` in `/etc/wazuh-dashboard/opensearch_dashboards.yml` to bypass OS address resolution entirely by using an explicit IPv4 address:
 
-**Lesson:** Always check `network.host` binding in OpenSearch/Elasticsearch-based stacks when running on dual-stack (IPv4/IPv6) systems. `localhost` is not reliable — use explicit IPs.
+```yaml
+opensearch.hosts: ["https://127.0.0.1:9200"]
+opensearch.ssl.verificationMode: none
+```
+
+**Engineering Lesson:** Never rely on `localhost` hostname resolution in service-to-service communication on dual-stack Linux systems. Always bind and connect to explicit IP addresses. This class of bug is particularly insidious because all services report healthy status — the failure lives entirely in the network layer handoff between components.
 
 ---
 
@@ -139,16 +147,27 @@ homelab/
 - [x] 5-node Kubernetes HA cluster
 - [x] MetalLB load balancer
 - [x] ArgoCD GitOps pipeline
-- [x] Prometheus + Grafana monitoring
+- [x] Prometheus + Grafana monitoring (two-tier)
 - [x] Wazuh SIEM/XDR (8 endpoints)
 
 ### Phase 2 — Infrastructure as Code 🔄
-- [ ] Ansible — Playbooks for Wazuh agent config management (ossec.conf)
-- [ ] Ansible — Playbooks for Proxmox node configuration
-- [ ] Terraform — Proxmox provider for VM provisioning
-- [ ] Terraform — Automated K8s node deployment
-- [ ] Kubernetes Audit Logging → Wazuh pipeline
-- [ ] Ingress controller (nginx) + cert-manager
+
+**Ansible (Configuration Management):**
+- [ ] Inventory file defining all Proxmox nodes and K8s VMs
+- [ ] Playbook: Wazuh agent deployment and `ossec.conf` management across all endpoints
+- [ ] Playbook: Proxmox node hardening and configuration drift remediation
+- [ ] Playbook: `opensearch_dashboards.yml` configuration management (self-healing)
+
+**Terraform (Provisioning):**
+- [ ] Telmate/Proxmox provider setup and authentication
+- [ ] Module: K8s worker node provisioning from cloud-init template
+- [ ] Module: Security VM provisioning (future Wazuh agents)
+- [ ] State backend configuration
+
+**Kubernetes Security (CKA Alignment):**
+- [ ] Kubernetes Audit Logging → Wazuh pipeline (`kube-apiserver` manifest configuration)
+- [ ] Ingress controller (nginx) + cert-manager for TLS
+- [ ] RBAC hardening across namespaces
 
 ### Phase 3 — Advanced
 - [ ] Vaultwarden self-hosted password manager

@@ -140,3 +140,16 @@ Grafana accessible at: `http://192.168.20.200`
 - [ ] Alertmanager rules for node down, high CPU, disk pressure
 - [ ] Integration with Wazuh for security event correlation
 - [ ] Grafana → Slack/email alerting
+
+---
+
+## Lessons Learned & Automation Goals
+
+| Issue | Manual Fix | Automation Goal |
+|-------|-----------|-----------------|
+| Prometheus config requires manual restart on change | `docker restart prometheus` | Ansible playbook manages prometheus.yml with automatic reload |
+| kube-state-metrics version mismatch | Manual Helm install + cleanup | Helm chart versions pinned in Git, managed via ArgoCD |
+| Grafana dashboard variables require manual input | Type job/node per session | Provision dashboards as code via Grafana provisioning |
+| No alerting configured | Manual dashboard monitoring | Alertmanager rules for node down, high CPU, disk pressure |
+
+**Phase 2 Priority:** Ansible will manage Prometheus configuration across LXC 101. Grafana dashboards will be provisioned as code. Alertmanager rules will be defined in Git and deployed via ArgoCD.
