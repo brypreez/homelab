@@ -1,0 +1,70 @@
+﻿---
+- name: "Wazuh Self-Healing & Configuration Management"
+  hosts: wazuh_manager
+  become: yes
+  tasks:
+    - name: "Fix IPv4/IPv6 Protocol Mismatch in Dashboard"
+      lineinfile:
+        path: /etc/wazuh-dashboard/opensearch_dashboards.yml
+        regexp: '^opensearch.hosts:'
+        line: 'opensearch.hosts: ["https://127.0.0.1:9200"]'
+        state: present
+      notify: Restart Wazuh Dashboard
+
+    - name: "Ensure SSL Verification Mode is set for Lab Environment"
+      lineinfile:
+        path: /etc/wazuh-dashboard/opensearch_dashboards.yml
+        regexp: '^opensearch.ssl.verificationMode:'
+        line: 'opensearch.ssl.verificationMode: none'
+        state: present
+      notify: Restart Wazuh Dashboard
+
+  handlers:
+    - name: Restart Wazuh Dashboard
+      systemd:
+        name: wazuh-dashboard
+        state: restarted
+
+- name: "Wazuh Agent Deployment & Parity"
+  hosts: all_agents
+  become: yes
+  vars:
+    wazuh_manager_ip: "192.168.40.20"
+    wazuh_version: "4.14.3-1"
+
+  tasks:
+    - name: "Add Wazuh GPG key"
+      apt_key:
+        url: https://packages.wazuh.com/key/GPG-KEY-WAZUH
+        state: present
+
+    - name: "Add Wazuh repository"
+      apt_repository:
+        repo: "deb https://packages.wazuh.com/4.x/apt/ stable main"
+        state: present
+        filename: wazuh
+
+    - name: "Install Wazuh Agent with version pinning"
+      apt:
+        name: "wazuh-agent={{ wazuh_version }}"
+        state: present
+        update_cache: yes
+
+    - name: "Configure Manager IP in ossec.conf"
+      replace:
+        path: /var/ossec/etc/ossec.conf
+        regexp: 'MANAGER_IP'
+        replace: "{{ wazuh_manager_ip }}"
+      notify: Restart Wazuh Agent
+
+    - name: "Ensure Wazuh agent is enabled and running"
+      systemd:
+        name: wazuh-agent
+        enabled: yes
+        state: started
+
+  handlers:
+    - name: Restart Wazuh Agent
+      systemd:
+        name: wazuh-agent
+        state: restarted
