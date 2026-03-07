@@ -1,0 +1,23 @@
+name: Deploy Wazuh Rules
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - 'etc/rules/local_rules.xml'
+
+jobs:
+  deploy:
+    runs-on: self-hosted
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Sync Rules to Wazuh
+        run: |
+          sudo cp etc/rules/local_rules.xml /var/ossec/etc/rules/local_rules.xml
+          
+      - name: Restart Wazuh Manager
+        run: |
+          sudo systemctl restart wazuh-manager
+          echo "Deployment successful: Wazuh Manager restarted with new rules."
