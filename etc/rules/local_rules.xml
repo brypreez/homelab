@@ -1,4 +1,10 @@
-<group name="local,syscheck,kubernetes_security,">
+<group name="kubernetes,audit,syscheck,">
+
+  <rule id="110000" level="0">
+    <decoded_as>json</decoded_as>
+    <location>/var/log/kubernetes/audit.log</location>
+    <description>Kubernetes audit log events.</description>
+  </rule>
 
   <rule id="110001" level="10">
     <if_sid>5402</if_sid>
@@ -8,9 +14,9 @@
   </rule>
 
   <rule id="110005" level="10">
-    <if_sid>550</if_sid>
-    <match>/etc/kubernetes/manifests</match>
-    <description>SECURITY ALERT: Critical K8s Manifest Modified</description>
+    <decoded_as>json</decoded_as>
+    <field name="syscheck.path">^/etc/kubernetes/manifests/.*</field>
+    <description>SECURITY ALERT: Critical K8s Manifest Modified: $(syscheck.path)</description>
     <group>syscheck,kubernetes_security,pci_dss_11.5</group>
   </rule>
 
