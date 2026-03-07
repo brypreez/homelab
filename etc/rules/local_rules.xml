@@ -1,31 +1,5 @@
-<group name="kubernetes,audit,">
-  <rule id="110000" level="0">
-    <decoded_as>json</decoded_as>
-    <location>/var/log/kubernetes/audit.log</location>
-    <description>Kubernetes audit log events.</description>
-  </rule>
-
-  <rule id="110002" level="7">
-    <if_sid>110000</if_sid>
-    <field name="objectRef.resource">secrets</field>
-    <description>Kubernetes Secret Accessed: $(objectRef.name) by $(user.username)</description>
-    <group>security_audit,gpg13_4.3,</group>
-  </rule>
-
-  <rule id="110003" level="0">
-    <if_sid>110000</if_sid>
-    <field name="user.username">system:anonymous|system:kube-scheduler|system:node:.*|system:kube-proxy|system:apiserver</field>
-    <description>Ignore K8s internal noise.</description>
-  </rule>
-
-  <rule id="110004" level="0">
-    <if_sid>110000</if_sid>
-    <field name="objectRef.resource">leases</field>
-    <description>Ignore K8s Lease heartbeats.</description>
-  </rule>
-</group>
-
 <group name="local,syscheck,kubernetes_security,">
+
   <rule id="110001" level="10">
     <if_sid>5402</if_sid>
     <match>kubectl delete</match>
@@ -35,8 +9,9 @@
 
   <rule id="110005" level="10">
     <if_sid>550</if_sid>
-    <field name="syscheck.path">^/etc/kubernetes/manifests/.*</field>
-    <description>SECURITY ALERT: Critical K8s Manifest Modified: $(syscheck.path)</description>
-    <group>syscheck,kubernetes_security,pci_dss_11.5,gdpr_II_5.1.f</group>
+    <match>/etc/kubernetes/manifests</match>
+    <description>SECURITY ALERT: Critical K8s Manifest Modified</description>
+    <group>syscheck,kubernetes_security,pci_dss_11.5</group>
   </rule>
+
 </group>
