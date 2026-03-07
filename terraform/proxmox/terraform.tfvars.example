@@ -1,0 +1,10 @@
+# ============================================================
+# terraform.tfvars.example
+# Copy this to terraform.tfvars and fill in real values.
+# terraform.tfvars is GITIGNORED — never commit real credentials.
+# ============================================================
+
+proxmox_api_url  = "https://192.168.40.10:8006/api2/json"
+proxmox_user     = "root@pam"
+proxmox_password = "YOUR_PROXMOX_PASSWORD"
+ssh_public_key   = "ssh-ed25519 AAAAC3Nz... brp@homelab"
