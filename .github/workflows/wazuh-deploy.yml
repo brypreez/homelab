@@ -15,7 +15,12 @@ jobs:
 
       - name: Sync Rules to Wazuh
         run: |
-          sudo cp etc/rules/local_rules.xml /var/ossec/etc/rules/local_rules.xml
+          # Using the absolute path discovered via find
+          sudo cp -v /home/github-runner/actions-runner/_work/homelab/homelab/etc/rules/local_rules.xml /var/ossec/etc/rules/local_rules.xml
+          
+      - name: Restart Wazuh Manager
+        run: |
+          sudo systemctl restart wazuh-manager
           
       - name: Restart Wazuh Manager
         run: |
