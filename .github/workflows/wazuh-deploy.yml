@@ -3,8 +3,6 @@ on:
   push:
     branches:
       - main
-    paths:
-      - 'etc/rules/local_rules.xml'
 
 jobs:
   deploy:
@@ -15,14 +13,12 @@ jobs:
 
       - name: Sync Rules to Wazuh
         run: |
-          # Using the absolute path discovered via find
-          sudo cp -v /home/github-runner/actions-runner/_work/homelab/homelab/etc/rules/local_rules.xml /var/ossec/etc/rules/local_rules.xml
+          # Find the file in the workspace
+          FILE_PATH=$(find . -name local_rules.xml | head -n 1)
+          echo "Syncing file from: $FILE_PATH"
           
-      - name: Restart Wazuh Manager
-        run: |
-          sudo systemctl restart wazuh-manager
+          # Use the exact sudo paths authorized in /etc/sudoers.d/github-runner
+          sudo /usr/bin/cp -v "$FILE_PATH" /var/ossec/etc/rules/local_rules.xml
+          sudo /usr/bin/systemctl restart wazuh-manager
           
-      - name: Restart Wazuh Manager
-        run: |
-          sudo systemctl restart wazuh-manager
-          echo "Deployment successful: Wazuh Manager restarted with new rules."
+          echo "Deployment successful: Wazuh Manager updated and restarted."
