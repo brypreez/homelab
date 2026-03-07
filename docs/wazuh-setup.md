@@ -211,3 +211,124 @@ systemctl start wazuh-agent
 | Agent registration requires manual auth | `agent-auth` per node | Ansible playbook automates bulk agent registration |
 
 **Phase 2 Priority:** Ansible will be the single source of truth for all Wazuh configuration. The first playbook will manage `ossec.conf` across all 8 endpoints and `opensearch_dashboards.yml` on the Wazuh LXC — eliminating configuration drift and providing self-healing infrastructure.
+
+---
+
+## Custom Detection Rules — Kubernetes Control Plane Security
+
+### FIM Configuration for K8s Manifests
+
+Add to `ossec.conf` on all Kubernetes master nodes:
+
+```xml
+<syscheck>
+  <!-- Default monitored paths -->
+  <directories realtime="yes" check_all="yes">/etc,/usr/bin,/usr/sbin</directories>
+
+  <!-- CRITICAL: Kubernetes control plane manifest monitoring -->
+  <directories realtime="yes" check_all="yes">/etc/kubernetes/manifests</directories>
+</syscheck>
+```
+
+This covers: `kube-apiserver.yaml`, `etcd.yaml`, `kube-controller-manager.yaml`, `kube-scheduler.yaml`
+
+### Custom Rule 110005
+
+Add to `/var/ossec/etc/rules/local_rules.xml` on the Wazuh manager:
+
+```xml
+<group name="syscheck,k8s_security,">
+  <rule id="110005" level="10">
+    <if_sid>550</if_sid>
+    <field name="file">/etc/kubernetes/manifests</field>
+    <description>CRITICAL: K8s Manifest Tampering on $(file)</description>
+    <group>syscheck,k8s_security,pci_dss_11.5,gpg13_4.11,</group>
+  </rule>
+</group>
+```
+
+**Compliance mapping:**
+- `pci_dss_11.5` — PCI DSS requirement for file integrity monitoring on critical systems
+- `gpg13_4.11` — Good Practice Guide 13 control for change detection
+
+**Why level 10:** Modification of K8s control plane manifests is a critical security event — potential indicators include supply chain attacks, unauthorized privilege escalation, and container escape attempts targeting the control plane.
+
+### XML Validation Workflow
+
+Always validate before restarting the manager:
+
+```bash
+xmllint --noout /var/ossec/etc/ossec.conf
+wazuh-manager --test-config
+systemctl restart wazuh-manager
+journalctl -u wazuh-manager -n 20
+```
+
+Common XML mistakes that cause `Line 0` startup failure:
+- Nested `<ossec_config>` tags (only one root container allowed)
+- Unclosed tags (use xmllint to find exact line)
+- Invalid characters in description strings
+
+---
+
+## Slack Integration — Real-Time Alerting Pipeline
+
+### Architecture
+
+```
+K8s Master Node
+└── Wazuh Agent (detects FIM event)
+    └── Wazuh Manager (matches Rule 110005)
+        └── Integration Module
+            └── Slack Incoming Webhook
+                └── #security-alerts channel
+```
+
+### Setup
+
+1. Create a Slack App at api.slack.com/apps
+2. Enable Incoming Webhooks
+3. Add webhook to `#security-alerts` channel
+4. Copy webhook URL
+
+### Secrets Management
+
+The Slack webhook URL is a secret — never commit it to a public repository. This project uses Ansible Vault to store sensitive keys and inject them at deploy time:
+
+```bash
+# Store webhook in Ansible Vault — plaintext never touches Git
+ansible-vault encrypt_string 'https://hooks.slack.com/services/REAL/URL' \
+  --name 'slack_webhook_url' >> ansible/group_vars/wazuh_manager/vault.yml
+```
+
+For manual deployments, inject via environment variable:
+```bash
+export SLACK_WEBHOOK_URL="https://hooks.slack.com/services/YOUR/REAL/URL"
+sed "s|<SLACK_WEBHOOK_URL_PLACEHOLDER>|$SLACK_WEBHOOK_URL|g" \
+  ossec.conf.template > /var/ossec/etc/ossec.conf
+```
+
+> ⚠️ Replace `<SLACK_WEBHOOK_URL_PLACEHOLDER>` at deploy time via Ansible Vault or environment variable injection. Never commit a real webhook URL to version control.
+
+### ossec.conf Integration Block
+
+```xml
+<ossec_config>
+  <integration>
+    <name>slack</name>
+    <hook_url><SLACK_WEBHOOK_URL_PLACEHOLDER></hook_url>
+    <rule_id>110005</rule_id>
+    <alert_format>json</alert_format>
+  </integration>
+</ossec_config>
+```
+
+### Test the Pipeline
+
+```bash
+# On any K8s master node — simulate manifest tampering
+touch /etc/kubernetes/manifests/test-file
+rm /etc/kubernetes/manifests/test-file
+```
+
+Slack alert should appear in `#security-alerts` within 30 seconds.

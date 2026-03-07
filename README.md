@@ -89,9 +89,20 @@ Wazuh 4.14.3 deployed on a dedicated LXC (192.168.40.20) monitoring all infrastr
 
 **Active Capabilities:**
 - CIS Ubuntu 22.04 LTS benchmark compliance scanning
-- File Integrity Monitoring (FIM)
-- Real-time threat detection and alerting
+- File Integrity Monitoring (FIM) — including `/etc/kubernetes/manifests` on all control planes
+- Custom rule 110005 — level 10 alert on K8s manifest tampering
+- Real-time Slack alerting via Incoming Webhook → `#security-alerts`
 - Custom dashboards: Security Noise Map, Top Attacker IPs
+
+**Secret Management:**
+Sensitive keys (Slack webhook URLs, API tokens) are stored in Ansible Vault and injected at deploy time. No secrets are committed to this repository — placeholders are used in all config examples.
+```mermaid
+graph LR
+    A[K8s Master Node] -->|FIM Event| B[Wazuh Agent]
+    B -->|Rule 110005 Match| C[Wazuh Manager]
+    C -->|Webhook| D[Slack API]
+    D -->|Real-time Alert| E[#security-alerts]
+```
 
 ---
 
@@ -149,6 +160,8 @@ homelab/
 - [x] ArgoCD GitOps pipeline
 - [x] Prometheus + Grafana monitoring (two-tier)
 - [x] Wazuh SIEM/XDR (8 endpoints)
+- [x] Custom FIM rules for K8s control plane manifests
+- [x] Real-time Slack alerting pipeline (Rule 110005 → #security-alerts)
 
 ### Phase 2 — Infrastructure as Code 🔄
 
@@ -192,9 +205,13 @@ homelab/
 ## 💼 Key Resume Bullets
 
 - Architected and deployed a hybrid Wazuh SIEM/XDR solution securing 8 multi-platform endpoints and 5 Kubernetes nodes; resolved complex IPv4/IPv6 networking conflicts and SSL/TLS handshake issues to ensure 100% data ingestion
+- Engineered a real-time security orchestration pipeline integrating Wazuh SIEM with Slack API — custom XML detection rules (Rule 110005) trigger level-10 alerts for Kubernetes control plane manifest tampering, delivered to SOC channel within seconds
+- Developed granular FIM detection for Kubernetes control plane by extending ossec.conf to monitor `/etc/kubernetes/manifests` with realtime alerting — eliminates blind spot for supply chain attacks and unauthorized control plane modifications
 - Implemented GitOps pipeline using ArgoCD with automated sync, self-healing, and pruning — integrated with GitHub via SSH deploy keys for secure repository access
 - Built a 5-node Kubernetes HA cluster using kubeadm with 3 control planes, Flannel CNI, and MetalLB load balancer on self-hosted Proxmox infrastructure
 - Designed and implemented VLAN-segmented network across 4 VLANs with inter-VLAN routing, firewall policies, and Pi-hole DNS serving all segments
+- Authored idempotent Ansible playbooks for Wazuh configuration management across 8-node fleet; validated baseline configuration compliance across mixed Ubuntu/Debian environment
+- Validated Terraform infrastructure-as-code plan for Proxmox VM provisioning using bpg/proxmox provider with cloud-init integration and static VLAN networking
 
 ---
 

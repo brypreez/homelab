@@ -152,3 +152,87 @@ opensearch.ssl.verificationMode: none
 **Lesson:** When deploying Wazuh in a multi-component environment, always install agents last and pin versions explicitly to match the manager. Consider using `apt-mark hold wazuh-manager` to prevent unintended manager upgrades that could create version skew.
 
 **Automation Goal:** Ansible playbook will manage Wazuh agent version across all endpoints, ensuring version parity with the manager and automating the upgrade sequence (manager first, agents second).
+
+---
+
+## 10. Wazuh FIM Missing Critical Kubernetes Paths
+
+**Symptom:** Wazuh FIM was not alerting on changes to Kubernetes control plane manifests despite FIM being active.
+
+**Root Cause:** Default `ossec.conf` FIM configuration does not include `/etc/kubernetes/manifests` — the directory where kubeadm stores kube-apiserver, etcd, kube-controller-manager, and kube-scheduler manifests. Any tampering with these files would go completely undetected.
+
+**Fix:** Added the following to `ossec.conf` on all Kubernetes master nodes:
+```xml
+<directories realtime="yes" check_all="yes">/etc/kubernetes/manifests</directories>
+```
+
+**Impact:** Critical blind spot eliminated. Any modification to K8s control plane manifests now triggers an immediate FIM alert, enabling detection of supply chain attacks, unauthorized configuration changes, and container escape attempts targeting the control plane.
+
+**Automation Goal:** Ansible playbook will manage `ossec.conf` across all K8s master nodes, ensuring this directory is always monitored regardless of kubeadm upgrades or node reprovisioning.
+
+---
+
+## 11. Custom Wazuh Rule — Generic FIM Alerts Lacking Context
+
+**Symptom:** Default FIM alerts (rule 550) fired for any file change with no context about severity or location. Alert fatigue risk — no way to distinguish a routine log rotation from K8s manifest tampering.
+
+**Root Cause:** Wazuh's default ruleset has no knowledge of Kubernetes-specific paths or their criticality. All FIM alerts were generic level 7 regardless of which file was modified.
+
+**Fix:** Created custom rule 110005 in `/var/ossec/etc/rules/local_rules.xml`:
+```xml
+<rule id="110005" level="10">
+  <if_sid>550</if_sid>
+  <field name="file">/etc/kubernetes/manifests</field>
+  <description>CRITICAL: K8s Manifest Tampering on $(file)</description>
+  <group>syscheck,k8s_security,</group>
+</rule>
+```
+
+**Impact:** K8s manifest changes now trigger level 10 (critical) alerts, separate from routine FIM noise. Enables targeted Slack alerting without overwhelming the security channel with low-priority events.
+
+**Automation Goal:** Ansible playbook will deploy and version-control `local_rules.xml` across the Wazuh manager, ensuring custom rules survive upgrades and are auditable in Git.
+
+---
+
+## 12. Wazuh Manager Startup Failure — XML Schema Error
+
+**Symptom:** `wazuh-manager` failed to start after editing `ossec.conf`. Journal showed `Line 0` error with no further detail.
+
+**Root Cause:** Two XML structural issues introduced during manual editing: nested `<ossec_config>` root tags (only one root container is valid) and an unclosed `<ruleset>` tag on line 260. The Wazuh XML parser fails silently on structure errors, reporting only `Line 0`.
+
+**Fix:** Validated XML syntax using `xmllint` to pinpoint exact error locations:
+```bash
+xmllint --noout /var/ossec/etc/ossec.conf
+```
+Flattened nested `<ossec_config>` tags to a single root container and closed the `<ruleset>` block. Manager started successfully after correction.
+
+**Impact:** Complete Wazuh manager outage — zero security monitoring across all 8 endpoints until resolved. The `xmllint` workflow is now standard practice before any `ossec.conf` modification.
+
+**Lesson:** Always validate XML with `xmllint` before restarting Wazuh manager. Never nest `<ossec_config>` tags — there must be exactly one root container. Use `wazuh-manager --test-config` as a secondary check.
+
+**Automation Goal:** Ansible playbook will use the `xml` module to make surgical changes to `ossec.conf`, eliminating manual XML editing entirely and preventing schema corruption.
+
+---
+
+## 13. Wazuh Slack Integration — Alerts Trapped in Dashboard
+
+**Symptom:** Level 10 K8s manifest tampering alerts were visible in the Wazuh dashboard but generated no real-time notification. SOC response time dependent on someone actively watching the dashboard.
+
+**Root Cause:** No external notification channel configured. Wazuh's integration module was not enabled and no webhook endpoint was defined.
+
+**Fix:** 
+1. Created a Slack App with Incoming Webhooks enabled
+2. Generated a webhook URL for the `#security-alerts` channel
+3. Configured `/var/ossec/etc/ossec.conf` integration block:
+```xml
+<integration>
+  <name>slack</name>
+  <hook_url>https://hooks.slack.com/services/YOUR/WEBHOOK/URL</hook_url>
+  <rule_id>110005</rule_id>
+  <alert_format>json</alert_format>
+</integration>
+```
+
+**Impact:** Real-time incident alerting established. Rule 110005 triggers now appear in `#security-alerts` within seconds of a manifest change — zero dependency on dashboard monitoring. Pipeline: K8s Master → Wazuh Agent → Wazuh Manager → Slack API.
+
+**Automation Goal:** Ansible vault will store the Slack webhook URL securely. Playbook will deploy the integration block to `ossec.conf` with the webhook injected at runtime, keeping secrets out of plaintext config files.
