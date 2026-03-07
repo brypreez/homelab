@@ -7,17 +7,7 @@ variable "proxmox_api_url" {
   default     = "https://192.168.40.10:8006/api2/json"
 }
 
-variable "proxmox_user" {
-  description = "Proxmox API user (e.g. root@pam)"
-  type        = string
-  sensitive   = true
-}
 
-variable "proxmox_password" {
-  description = "Proxmox API password"
-  type        = string
-  sensitive   = true
-}
 
 # ============================================================
 # VM Configuration
@@ -92,4 +82,16 @@ variable "dns_server" {
   description = "Pi-hole DNS server"
   type        = string
   default     = "192.168.10.2"
+}
+
+variable "proxmox_token_id" {
+  description = "Proxmox API token ID (e.g. root@pam!terraform)"
+  type        = string
+  sensitive   = true
+}
+
+variable "proxmox_token_secret" {
+  description = "Proxmox API token secret"
+  type        = string
+  sensitive   = true
 }
