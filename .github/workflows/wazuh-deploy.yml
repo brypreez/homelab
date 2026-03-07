@@ -11,14 +11,25 @@ jobs:
       - name: Checkout Code
         uses: actions/checkout@v4
 
-      - name: Sync Rules to Wazuh
+      - name: Sync and Test Rules
         run: |
           # Find the file in the workspace
           FILE_PATH=$(find . -name local_rules.xml | head -n 1)
-          echo "Syncing file from: $FILE_PATH"
           
-          # Use the exact sudo paths authorized in /etc/sudoers.d/github-runner
+          # Copy to Wazuh directory and fix permissions
           sudo /usr/bin/cp -v "$FILE_PATH" /var/ossec/etc/rules/local_rules.xml
-          sudo /usr/bin/systemctl restart wazuh-manager
+          sudo chown wazuh:wazuh /var/ossec/etc/rules/local_rules.xml
+          sudo chmod 660 /var/ossec/etc/rules/local_rules.xml
+          
+          # PRE-FLIGHT CHECK: Test the configuration
+          echo "Checking Wazuh configuration for syntax errors..."
+          if sudo /var/ossec/bin/wazuh-analysisd -t; then
+            echo "Configuration valid! Restarting Wazuh..."
+            sudo /usr/bin/systemctl restart wazuh-manager
+          else
+            echo "ERROR: Configuration test failed. Skipping restart to prevent downtime."
+            # Exit with 1 so the GitHub Action shows as FAILED if there's a typo
+            exit 1
+          fi
           
           echo "Deployment successful: Wazuh Manager updated and restarted."
