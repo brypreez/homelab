@@ -6,7 +6,7 @@ resource "proxmox_virtual_environment_vm" "k8s_worker" {
   name      = each.value.name
 
   clone {
-    vm_id = 9000
+    vm_id = each.value.template_vmid
     full  = true
   }
 

@@ -49,6 +49,7 @@ variable "k8s_workers" {
     memory  = number
     disk    = string
     node    = string
+    template_vmid = number
   }))
   default = [
     {
@@ -56,18 +57,20 @@ variable "k8s_workers" {
       vmid   = 205
       ip     = "192.168.20.22"
       cores  = 4
-      memory = 8192
+      memory = 6144
       disk   = "50G"
       node   = "enode-b"
+      template_vmid = 9001
     },
     {
       name   = "k8s-worker-4"
       vmid   = 206
       ip     = "192.168.20.23"
       cores  = 4
-      memory = 8192
+      memory = 6144
       disk   = "50G"
       node   = "enode-c"
+      template_vmid = 9002
     }
   ]
 }
