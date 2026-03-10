@@ -57,7 +57,9 @@
         - Notify Slack — Self-Healing Triggered
 
     - name: Verify Wazuh Indexer is bound to 127.0.0.1:9200
-      ansible.builtin.shell: ss -tlnp | grep 9200
+      ansible.builtin.shell: |
+        set -o pipefail
+        ss -tlnp | grep 9200
       register: indexer_bind
       changed_when: false
       failed_when: false
