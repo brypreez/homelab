@@ -10,7 +10,7 @@
 
 ## Overview
 
-This repository is the single source of truth for a self-hosted private cloud environment running on bare-metal Proxmox VE. The infrastructure mirrors enterprise production standards: HA Kubernetes control plane, GitOps-managed workloads, multi-tier SIEM/XDR security orchestration, VLAN-segmented networking, and full observability.
+This repository is the single source of truth for a self-hosted private cloud environment running on bare-metal Proxmox VE. The infrastructure mirrors enterprise production standards: HA Kubernetes control plane, GitOps-managed workloads via ArgoCD App-of-Apps, multi-tier SIEM/XDR security orchestration, VLAN-segmented networking, and full observability.
 
 No configuration exists outside of version control. No manual changes are made to production without a documented change record.
 
@@ -51,12 +51,16 @@ No configuration exists outside of version control. No manual changes are made t
 | Control Plane | k8s-master-1 | 192.168.20.10 | 4GB | enode-a |
 | Control Plane | k8s-master-2 | 192.168.20.11 | 4GB | enode-b |
 | Control Plane | k8s-master-3 | 192.168.20.12 | 4GB | enode-c |
-| Worker | k8s-worker-1 | 192.168.20.20 | 8GB | enode-a |
-| Worker | k8s-worker-2 | 192.168.20.21 | 8GB | enode-a |
+| Worker | k8s-worker-1 | 192.168.20.20 | 8GB | enode-b |
+| Worker | k8s-worker-2 | 192.168.20.21 | 8GB | enode-c |
+| Worker | k8s-worker-3 | 192.168.20.22 | 6GB | enode-b |
+| Worker | k8s-worker-4 | 192.168.20.23 | 6GB | enode-c |
 
 **K8s Version:** v1.32.13 — **CNI:** Flannel (`10.244.0.0/16`) — **LB:** MetalLB
 
 The 3-node control plane configuration ensures **etcd quorum** is maintained through single-node failure. With one master down, the remaining two nodes hold quorum (2/3) and the cluster continues scheduling workloads with zero interruption. Control plane VMs are distributed across all three physical hosts — no physical host is a single point of failure for the control plane.
+
+Worker nodes worker-3 and worker-4 were provisioned via Terraform (`bpg/proxmox` provider) with per-node cloud-init templates, static VLAN 20 addressing, and SSH key injection — zero manual Proxmox UI interaction.
 
 ---
 
@@ -113,24 +117,53 @@ flowchart LR
 
 ---
 
-## GitOps Pipeline — ArgoCD
+## GitOps Pipeline — ArgoCD App-of-Apps
 
 All cluster state is version-controlled in this repository. No manual `kubectl apply` in production.
 
 ```
 github.com/brypreez/homelab
 └── kubernetes/
+    ├── argocd-apps/              ← Root app watches this directory
+    │   ├── root-app.yaml         ← Bootstrap manifest (applied once)
+    │   ├── nginx-test.yaml       ← Application manifest
+    │   ├── metallb.yaml          ← Application manifest
+    │   └── kube-prometheus-stack.yaml  ← Application manifest
     └── apps/
-        └── app-of-apps.yaml   ← ArgoCD root application
+        ├── nginx-test/           ← Deployment, Service, NetworkPolicy
+        └── metallb/              ← IPAddressPool, L2Advertisement
 ```
+
+**App-of-Apps Pattern:**
+A single root ArgoCD Application watches `kubernetes/argocd-apps/`. Every file in that directory is itself an ArgoCD Application manifest pointing to a subdirectory under `kubernetes/apps/`. Adding a new application to the cluster requires only a Git push — no manual ArgoCD UI interaction.
 
 **ArgoCD Configuration:**
 - Automated sync enabled
 - Self-healing enabled (divergence triggers re-sync)
 - Pruning enabled (resources removed from Git are removed from cluster)
 - SSH deploy key authentication — no PAT stored in cluster
+- `ServerSideApply=true` on Helm-based apps to handle large CRD field managers
 
-Any drift between cluster state and Git is automatically corrected. Change management happens in Git, not in the cluster.
+**Currently managed applications:**
+
+| App | Namespace | Source | Status |
+|-----|-----------|--------|--------|
+| nginx-test | default | Git path | Synced/Healthy |
+| metallb | metallb-system | Git path | Synced/Healthy |
+| kube-prometheus-stack | monitoring | Helm chart 82.9.0 | Synced/Healthy |
+
+---
+
+## Network Security — Kubernetes NetworkPolicy
+
+Default-deny ingress/egress enforced at the namespace level. Explicit allow rules scoped per workload.
+
+| Namespace | Policy | Effect |
+|-----------|--------|--------|
+| default | default-deny-all | Blocks all ingress and egress by default |
+| default | allow-nginx-ingress | Permits TCP/80 inbound to nginx-test pods |
+
+All NetworkPolicies are managed via ArgoCD GitOps — no manual `kubectl apply`.
 
 ---
 
@@ -148,6 +181,7 @@ Any drift between cluster state and Git is automatically corrected. Change manag
 - Pod networking and CNI visibility
 - Control plane component metrics (API server, scheduler, controller-manager)
 - Alertmanager with Slack integration for threshold breaches
+- Grafana service pinned to LoadBalancer IP 192.168.20.200 via Helm values in ArgoCD
 
 ---
 
@@ -160,14 +194,14 @@ Runs from `enode-a` at `~/ansible/`.
 ```
 ansible/
 ├── inventory/
-│   └── hosts.ini          # 9 hosts across 4 groups
+│   └── hosts.ini          # 10 hosts across 4 groups
 └── playbooks/
     └── wazuh_self_healing.yml   # Idempotent config enforcement
 ```
 
 **Host Groups:** `wazuh_manager` · `proxmox_nodes` · `k8s_control_plane` · `k8s_workers` · `all_agents`
 
-The `wazuh_self_healing.yml` playbook enforces correct Wazuh configuration state across all 8 agents. Verified idempotent — `changed=0` on a correctly configured fleet.
+The `wazuh_self_healing.yml` playbook enforces correct Wazuh configuration state across all 10 agents. Verified idempotent — `changed=0` on a correctly configured fleet.
 
 ### Terraform
 
@@ -183,44 +217,28 @@ terraform/proxmox/
 └── .gitignore              # terraform.tfvars excluded — contains vault secrets
 ```
 
-**Validated Plan:** `Plan: 2 to add, 0 to change, 0 to destroy`
+**Applied:** `2 added, 0 changed, 0 destroyed`
 
-Provisions `k8s-worker-3` (VMID 205, enode-b, `192.168.20.22`) and `k8s-worker-4` (VMID 206, enode-c, `192.168.20.23`) — each 4 cores, 8GB RAM, 50GB, cloud-init static VLAN networking, SSH key injection.
+Provisions `k8s-worker-3` (VMID 205, enode-b, `192.168.20.22`) and `k8s-worker-4` (VMID 206, enode-c, `192.168.20.23`) — each 4 cores, 6GB RAM, 50GB disk, cloud-init static VLAN 20 networking, SSH key injection. Each node clones from a locally provisioned Ubuntu 22.04 cloud-init template (`template_vmid` per-node variable) to avoid cross-node storage constraints on local-lvm.
+
+Workers joined to the cluster via `kubeadm join` and enrolled as Wazuh agents (IDs 009, 010) immediately after provisioning. MAC addresses bound to static DHCP leases on ER605 for VLAN 20.
 
 ---
 
-## Featured Technical Postmortem
+## Featured Technical Postmortems
 
 ### RFC 6724 — IPv4/IPv6 Address Selection Conflict
 
 **Symptom:** Wazuh Dashboard could not connect to OpenSearch Indexer. `ERR_CONNECTION_REFUSED` on all dashboard attempts. Both services confirmed running.
 
-**Investigation:**
-
-```bash
-# Both services running — not a process issue
-systemctl status wazuh-indexer wazuh-dashboard
-
-# Indexer binding confirmed IPv4 only
-ss -tlnp | grep 9200
-# → 0.0.0.0:9200
-
-# Dashboard attempting IPv6
-cat /etc/wazuh-dashboard/opensearch_dashboards.yml
-# opensearch.hosts: ["https://localhost:9200"]
-```
-
-**Root Cause:** RFC 6724 defines IPv6 address selection preference rules. When `localhost` is resolved, the system prefers `::1` (IPv6 loopback) over `127.0.0.1` (IPv4 loopback) per the RFC 6724 precedence table. The Wazuh Indexer was bound exclusively to `127.0.0.1`. The Dashboard resolved `localhost` → `::1` → connection refused.
+**Root Cause:** RFC 6724 defines IPv6 address selection preference rules. When `localhost` is resolved, the system prefers `::1` (IPv6 loopback) over `127.0.0.1` (IPv4 loopback). The Wazuh Indexer was bound exclusively to `127.0.0.1`. The Dashboard resolved `localhost` → `::1` → connection refused.
 
 **Fix:**
-
 ```yaml
 # /etc/wazuh-dashboard/opensearch_dashboards.yml
 opensearch.hosts: ["https://127.0.0.1:9200"]
 opensearch.ssl.verificationMode: none
 ```
-
-**Result:** 100% data ingestion restored. All 8 agents reporting.
 
 **Lesson:** Never use `localhost` in service configuration files on dual-stack systems. Always specify the explicit address family.
 
@@ -228,25 +246,21 @@ opensearch.ssl.verificationMode: none
 
 ### XML Line 0 Parser Error — Wazuh Manager Silent Failure
 
-**Symptom:** Wazuh Manager started without error but produced zero alerts. All 8 agents connected but no events processed.
+**Symptom:** Wazuh Manager started without error but produced zero alerts. All agents connected but no events processed.
 
-**Diagnosis:**
-
-```bash
-xmllint --noout /var/ossec/etc/ossec.conf
-# → ossec.conf:1: parser error: Extra content at the end of the document
-
-/var/ossec/bin/wazuh-analysisd -t
-# → ERROR: Configuration error at ossec.conf
-```
-
-**Root Cause:** Two issues identified:
-1. Nested `<ossec_config>` root containers — the file had been edited with a duplicate root tag wrapping a section
-2. Unclosed `<ruleset>` tag at line 260 — blocked the parser from reading any rules downstream
+**Root Cause:** Two issues — nested `<ossec_config>` root containers and an unclosed `<ruleset>` tag at line 260 blocking the parser from reading any rules downstream.
 
 **Fix:** Removed duplicate root container, closed `<ruleset>` tag, re-validated with `xmllint --noout` until clean.
 
-**Result:** Manager restarted cleanly, Rule 110005 loaded, FIM alerts flowing.
+---
+
+### ArgoCD EmptyDir Crash-Loop — Stale /bin/ln Symlink
+
+**Symptom:** ArgoCD `argocd-repo-server` pod crash-looping on startup. All 6 ArgoCD pods affected.
+
+**Root Cause:** Stale `/bin/ln` symlink in an EmptyDir init volume left over from a previous pod lifecycle. The init container failed to overwrite it, causing the main container to never start.
+
+**Fix:** Deleted all ArgoCD pods to force fresh EmptyDir allocation. Pods recovered to `1/1 Running` on restart.
 
 ---
 
@@ -257,28 +271,34 @@ xmllint --noout /var/ossec/etc/ossec.conf
 | Component | Status |
 |-----------|--------|
 | 3-node Proxmox VE cluster (corosync HA) | ✅ Operational |
-| 5-node Kubernetes HA cluster (kubeadm) | ✅ Operational |
+| 7-node Kubernetes HA cluster (kubeadm) | ✅ Operational |
 | VLAN-segmented network (4 zones, 802.1Q) | ✅ Operational |
-| Wazuh SIEM/XDR — 8 agents | ✅ Operational |
+| Wazuh SIEM/XDR — 10 agents | ✅ Operational |
 | K8s Control Plane Sentinel (FIM + Slack) | ✅ Operational |
-| ArgoCD GitOps pipeline | ✅ Operational |
+| ArgoCD GitOps pipeline — App-of-Apps | ✅ Operational |
 | Two-tier observability (Prometheus/Grafana) | ✅ Operational |
 | Ansible IaC — idempotent config enforcement | ✅ Validated |
-| Terraform IaC — Proxmox VM provisioning | ✅ Plan validated |
-| GitHub Actions CI/CD (ansible-lint, tf-validate) | ✅ Operational |
+| Terraform IaC — worker-3/4 provisioned | ✅ Applied |
+| GitHub Actions CI/CD (ansible-lint) | ✅ Operational |
+| Wazuh FIM centralized via agent.conf | ✅ Operational |
+| K8s NetworkPolicy — default namespace | ✅ Enforced |
 
-### Active Engineering Sprints — Q1/Q2 2026
+### Active Engineering Sprints — Q2 2026
 
 | Sprint | Objective | Priority |
 |--------|-----------|----------|
-| Terraform Apply | Provision k8s-worker-3/4 after enode-b/c RAM upgrade | High |
 | K8s Audit Logging → Wazuh | Route kube-apiserver audit events into SIEM pipeline | High |
+| Monitoring NetworkPolicy | Extend default-deny to monitoring namespace via App-of-Apps | High |
 | Ingress + cert-manager | nginx Ingress controller + automated TLS via Let's Encrypt | Medium |
 | Vaultwarden | Self-hosted password manager deployment via ArgoCD | Medium |
-| Automated Wazuh Remediation | Active-response scripts for Rule 110005 trigger | High |
+| Kustomize overlays | Base + environment-specific patches for multi-env GitOps | Medium |
 
 ### Phase 3 — Backlog
 
+- Ansible roles refactor — reusable role structure replacing procedural playbooks
+- ArgoCD image updater — automated container version bumps on new image push
+- Terraform modules — reusable proxmox module abstraction
+- Sealed Secrets / External Secrets Operator — GitOps-native secret management
 - Multi-cluster federation (k3s lightweight edge cluster)
 - OPA/Gatekeeper policy enforcement
 - Velero backup and disaster recovery testing
@@ -292,15 +312,18 @@ xmllint --noout /var/ossec/etc/ossec.conf
 ```
 homelab/
 ├── README.md
-├── docs/
-│   ├── network-setup.md
-│   ├── kubernetes-setup.md
-│   ├── monitoring-setup.md
-│   ├── wazuh-setup.md
-│   └── troubleshooting.md
 ├── kubernetes/
+│   ├── argocd-apps/
+│   │   ├── root-app.yaml
+│   │   ├── nginx-test.yaml
+│   │   ├── metallb.yaml
+│   │   └── kube-prometheus-stack.yaml
 │   └── apps/
-│       └── nginx-test.yaml
+│       ├── nginx-test/
+│       │   ├── nginx-test.yaml
+│       │   └── network-policies-default.yaml
+│       └── metallb/
+│           └── metallb-config.yaml
 ├── ansible/
 │   ├── inventory/
 │   │   └── hosts.ini
@@ -325,12 +348,12 @@ homelab/
 | Container Orchestration | Kubernetes v1.32 (kubeadm) |
 | CNI | Flannel |
 | Load Balancer | MetalLB |
-| GitOps | ArgoCD |
+| GitOps | ArgoCD (App-of-Apps) |
 | SIEM/XDR | Wazuh 4.14.3 |
 | IaC — Provisioning | Terraform (bpg/proxmox) |
 | IaC — Configuration | Ansible |
 | CI/CD | GitHub Actions |
-| Observability | kube-prometheus-stack, Grafana, Loki, Alertmanager |
+| Observability | kube-prometheus-stack, Grafana, Alertmanager |
 | DNS | Pi-hole |
 | Networking | TP-Link ER605, Netgear GS308E (802.1Q) |
 
