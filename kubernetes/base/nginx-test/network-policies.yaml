@@ -2,25 +2,23 @@
 kind: NetworkPolicy
 metadata:
   name: default-deny-all
-  namespace: default
 spec:
   podSelector: {}
   policyTypes:
-    - Ingress
-    - Egress
+  - Ingress
+  - Egress
 ---
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
 metadata:
   name: allow-nginx-ingress
-  namespace: default
 spec:
   podSelector:
     matchLabels:
       app: nginx-test
   policyTypes:
-    - Ingress
+  - Ingress
   ingress:
-    - ports:
-        - protocol: TCP
-          port: 80
+  - ports:
+    - port: 80
+      protocol: TCP

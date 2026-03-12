@@ -2,7 +2,6 @@
 kind: Deployment
 metadata:
   name: nginx-test
-  namespace: default
 spec:
   replicas: 2
   selector:
@@ -15,19 +14,13 @@ spec:
     spec:
       containers:
       - name: nginx
-        image: nginx:latest
+        image: nginx:stable
         ports:
         - containerPort: 80
----
-apiVersion: v1
-kind: Service
-metadata:
-  name: nginx-test
-  namespace: default
-spec:
-  type: LoadBalancer
-  selector:
-    app: nginx-test
-  ports:
-  - port: 80
-    targetPort: 80
+        resources:
+          requests:
+            memory: "64Mi"
+            cpu: "50m"
+          limits:
+            memory: "128Mi"
+            cpu: "100m"

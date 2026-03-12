@@ -1,17 +1,17 @@
 ﻿apiVersion: argoproj.io/v1alpha1
 kind: Application
 metadata:
-  name: nginx-test
+  name: nginx-test-dev
   namespace: argocd
 spec:
   project: default
   source:
     repoURL: git@github.com:brypreez/homelab.git
     targetRevision: HEAD
-    path: kubernetes/overlays/prod/nginx-test
+    path: kubernetes/overlays/dev/nginx-test
   destination:
     server: https://kubernetes.default.svc
-    namespace: default
+    namespace: nginx-dev
   syncPolicy:
     automated:
       selfHeal: true
