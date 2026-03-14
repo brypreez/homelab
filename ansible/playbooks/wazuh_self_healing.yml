@@ -1,12 +1,12 @@
 ---
 - name: "Wazuh Dashboard Configuration"
   hosts: wazuh_manager
-  become: yes
+  become: true
   roles:
     - wazuh_dashboard_config
 
 - name: "Wazuh Agent Deployment & Parity"
   hosts: all_agents
-  become: yes
+  become: true
   roles:
     - wazuh_agent

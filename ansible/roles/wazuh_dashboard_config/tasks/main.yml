@@ -1,6 +1,6 @@
 ---
 - name: "Fix IPv4/IPv6 Protocol Mismatch in Dashboard"
-  lineinfile:
+  ansible.builtin.lineinfile:
     path: /etc/wazuh-dashboard/opensearch_dashboards.yml
     regexp: '^opensearch.hosts:'
     line: 'opensearch.hosts: ["https://127.0.0.1:9200"]'
@@ -8,7 +8,7 @@
   notify: Restart Wazuh Dashboard
 
 - name: "Ensure SSL Verification Mode is set"
-  lineinfile:
+  ansible.builtin.lineinfile:
     path: /etc/wazuh-dashboard/opensearch_dashboards.yml
     regexp: '^opensearch.ssl.verificationMode:'
     line: 'opensearch.ssl.verificationMode: none'
