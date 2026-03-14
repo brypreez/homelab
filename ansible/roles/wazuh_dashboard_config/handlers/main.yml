@@ -1,0 +1,5 @@
+---
+- name: Restart Wazuh Dashboard
+  systemd:
+    name: wazuh-dashboard
+    state: restarted
