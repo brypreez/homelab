@@ -15,7 +15,8 @@ spec:
     repoURL: git@github.com:brypreez/homelab.git
     targetRevision: HEAD
     path: kubernetes/overlays/prod/nginx-test
-    kustomize: {}
+    kustomize:
+      version: v4
   destination:
     server: https://kubernetes.default.svc
     namespace: default
