@@ -4,9 +4,10 @@ metadata:
   name: nginx-test
   namespace: argocd
   annotations:
-    argocd-image-updater.argoproj.io/image-list: nginx=docker.io/library/nginx:stable
+    argocd-image-updater.argoproj.io/image-list: nginx=docker.io/library/nginx
     argocd-image-updater.argoproj.io/nginx.update-strategy: digest
-    argocd-image-updater.argoproj.io/write-back-method: git
+    argocd-image-updater.argoproj.io/nginx.allow-tags: regexp:^stable$
+    argocd-image-updater.argoproj.io/write-back-method: kustomize
     argocd-image-updater.argoproj.io/git-branch: main
 spec:
   project: default
