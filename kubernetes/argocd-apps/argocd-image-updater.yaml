@@ -14,12 +14,7 @@ spec:
         config:
           argocd:
             insecure: true
-        extraEnv:
-          - name: ARGOCD_IMAGE_UPDATER_GITCREDS
-            valueFrom:
-              secretKeyRef:
-                name: argocd-image-updater-secret
-                key: github.token
+          logLevel: debug
   destination:
     server: https://kubernetes.default.svc
     namespace: argocd
