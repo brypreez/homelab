@@ -1,3 +1,12 @@
+terraform {
+  required_providers {
+    proxmox = {
+      source  = "bpg/proxmox"
+      version = "0.98.0"
+    }
+  }
+}
+
 resource "proxmox_virtual_environment_vm" "vm" {
   for_each  = { for vm in var.vms : vm.name => vm }
   node_name = each.value.node
