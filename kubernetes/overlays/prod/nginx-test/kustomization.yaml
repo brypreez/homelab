@@ -4,7 +4,7 @@ namespace: default
 resources:
   - ../../../base/nginx-test
 images:
-  - name: nginx
+  - name: docker.io/library/nginx
     newTag: stable
 patches:
   - path: replica-patch.yaml
