@@ -12,10 +12,14 @@ spec:
       - resources:
           kinds:
           - Pod
+          - Deployment
+          - StatefulSet
+          - Job
+          - DaemonSet
     validate:
       message: "Privileged containers are strictly forbidden. Security-Sentinel is watching."
       foreach:
-      - list: "request.object.spec.containers"
+      - list: "request.object.spec.template.spec.containers || request.object.spec.containers"
         deny:
           conditions:
             all:
