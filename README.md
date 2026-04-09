@@ -89,19 +89,6 @@ flowchart LR
     E -->|Structured alert| F[#security-alerts\nSOC Channel]
     
 ```
-### Kyverno — Policy-as-Code (PAC)
-The cluster utilizes Kyverno to enforce a "Zero Trust" security posture at the API level by moving away from brittle YAML patterns toward **recursive foreach loops with Conditional Anchors**.
-
-**Security-Sentinel Logic:**
-Policies now utilize recursive loops to inspect nested pod templates within high-level controllers (Deployments, Jobs, StatefulSets). This ensures that even if a pod is created via a controller, it cannot bypass security checks.
-
-| Policy | Effect | Scope |
-|--------|--------|-------|
-| disallow-privileged-containers | Enforce | Blocks privileged escalations in Pods/Deployments/Jobs |
-
-**Performance Tuning:**
-To resolve the API Server resource exhaustion (which previously caused 4,000+ restarts), the Kyverno implementation was optimized using **Server-Side Apply (SSA)** and clearing stale Controller Lease Locks.
-
 ### Detection Logic
 
 **Monitored Path:** `/etc/kubernetes/manifests` (realtime, check_all) on all 3 masters
@@ -127,6 +114,19 @@ To resolve the API Server resource exhaustion (which previously caused 4,000+ re
 - Unauthorized admission controller insertion
 
 **Secrets Management:** Slack webhook URL stored in Ansible Vault — never in plaintext, never committed to version control.
+
+### Kyverno — Policy-as-Code (PAC)
+The cluster utilizes Kyverno to enforce a "Zero Trust" security posture at the API level by moving away from brittle YAML patterns toward **recursive foreach loops with Conditional Anchors**.
+
+**Security-Sentinel Logic:**
+Policies now utilize recursive loops to inspect nested pod templates within high-level controllers (Deployments, Jobs, StatefulSets). This ensures that even if a pod is created via a controller, it cannot bypass security checks.
+
+| Policy | Effect | Scope |
+|--------|--------|-------|
+| disallow-privileged-containers | Enforce | Blocks privileged escalations in Pods/Deployments/Jobs |
+
+**Performance Tuning:**
+To resolve the API Server resource exhaustion (which previously caused 4,000+ restarts), the Kyverno implementation was optimized using **Server-Side Apply (SSA)** and clearing stale Controller Lease Locks.
 
 ---
 
