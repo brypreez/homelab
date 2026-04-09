@@ -78,7 +78,7 @@ Worker nodes worker-3 and worker-4 were provisioned via Terraform (`bpg/proxmox`
 
 ## Security Pipeline — Kubernetes Control Plane Sentinel
 
-Real-time detection and automated alerting for Kubernetes control plane tampering. MTTD under 5 seconds from file change to Slack notification.
+Real-time detection and automated alerting for Kubernetes control plane tampering. MTTD under 1 second from file change to Slack notification.
 
 ```mermaid
 flowchart LR
