@@ -2,7 +2,7 @@
 
 ![Ansible Lint](https://github.com/brypreez/homelab/actions/workflows/ansible-lint.yml/badge.svg)
 
-**Cloud & DevOps Engineering — Private Infrastructure Portfolio**
+**Infrastructure & Platform Engineering — Private Infrastructure Portfolio**
 
 > Architected and operated to a 99.99% production-grade SLA with strict change management and version-controlled IaC. Everything here is verified operational.
 
@@ -84,10 +84,23 @@ Real-time detection and automated alerting for Kubernetes control plane tamperin
 flowchart LR
     A[K8s Master Node\n/etc/kubernetes/manifests] -->|inotify realtime FIM| B[Wazuh Agent]
     B -->|syscheck event forwarded| C[Wazuh Manager\n192.168.40.20]
-    C -->|Rule 110005 match\nLevel 10 — PCI DSS 11.5| D{Alert Engine}
+    C -->|Rule 110005 match\nLevel 12 — PCI DSS 11.5| D{Alert Engine}
     D -->|JSON payload| E[Slack Webhook API]
     E -->|Structured alert| F[#security-alerts\nSOC Channel]
+    
 ```
+### Kyverno — Policy-as-Code (PAC)
+The cluster utilizes Kyverno to enforce a "Zero Trust" security posture at the API level by moving away from brittle YAML patterns toward **recursive foreach loops with Conditional Anchors**.
+
+**Security-Sentinel Logic:**
+Policies now utilize recursive loops to inspect nested pod templates within high-level controllers (Deployments, Jobs, StatefulSets). This ensures that even if a pod is created via a controller, it cannot bypass security checks.
+
+| Policy | Effect | Scope |
+|--------|--------|-------|
+| disallow-privileged-containers | Enforce | Blocks privileged escalations in Pods/Deployments/Jobs |
+
+**Performance Tuning:**
+To resolve the API Server resource exhaustion (which previously caused 4,000+ restarts), the Kyverno implementation was optimized using **Server-Side Apply (SSA)** and clearing stale Controller Lease Locks.
 
 ### Detection Logic
 
@@ -96,7 +109,7 @@ flowchart LR
 **Custom Rule 110005** — `local_rules.xml`:
 ```xml
 <group name="syscheck,k8s_security,">
-  <rule id="110005" level="10">
+  <rule id="110005" level="12">
     <if_sid>550</if_sid>
     <field name="file">/etc/kubernetes/manifests</field>
     <description>CRITICAL: K8s Manifest Tampering Detected on $(agent.name)</description>
@@ -124,14 +137,11 @@ All cluster state is version-controlled in this repository. No manual `kubectl a
 ```
 github.com/brypreez/homelab
 └── kubernetes/
-    ├── argocd-apps/              ← Root app watches this directory
-    │   ├── root-app.yaml         ← Bootstrap manifest (applied once)
-    │   ├── nginx-test.yaml       ← Application manifest
-    │   ├── metallb.yaml          ← Application manifest
-    │   └── kube-prometheus-stack.yaml  ← Application manifest
-    └── apps/
-        ├── nginx-test/           ← Deployment, Service, NetworkPolicy
-        └── metallb/              ← IPAddressPool, L2Advertisement
+    ├── argocd-apps/
+    ├── base/
+    │   └── nginx-test/           ← Shared base manifests
+    └── overlays/
+        └── production/           ← Environment-specific patches
 ```
 
 **App-of-Apps Pattern:**
@@ -146,11 +156,12 @@ A single root ArgoCD Application watches `kubernetes/argocd-apps/`. Every file i
 
 **Currently managed applications:**
 
-| App | Namespace | Source | Status |
-|-----|-----------|--------|--------|
-| nginx-test | default | Git path | Synced/Healthy |
-| metallb | metallb-system | Git path | Synced/Healthy |
-| kube-prometheus-stack | monitoring | Helm chart 82.9.0 | Synced/Healthy |
+| App | Namespace | Source Path | Status |
+|-----|-----------|-------------|--------|
+| nginx-test | default | kubernetes/overlays/production | ✅ Synced |
+| metallb | metallb-system | kubernetes/apps/metallb | ✅ Synced |
+| kyverno | kyverno | apps/disallow-privileged.yaml* | ✅ Synced |
+| kube-prometheus-stack | monitoring | Helm (ArgoCD Managed) | ✅ Synced |
 
 ---
 
@@ -262,6 +273,16 @@ opensearch.ssl.verificationMode: none
 
 **Fix:** Deleted all ArgoCD pods to force fresh EmptyDir allocation. Pods recovered to `1/1 Running` on restart.
 
+### API Server Resource Exhaustion (4,000+ Restarts)
+
+**Symptom:** Critical instability with pods hitting 4,000+ restart counts.
+
+**Root Cause:** Admission controller webhook contention and API server resource exhaustion under high-throughput load.
+
+**Fix:** Refactored Kyverno policies for performance, implemented **Server-Side Apply (SSA)** to reduce payload overhead, and cleared stale Controller Lease Locks.
+
+**Lesson:** Use **Server-Side Apply (SSA)** in Kyverno for large clusters to prevent field-manager conflicts and reduce API server CPU overhead during reconciliation loops.
+
 ---
 
 ## Infrastructure Lifecycle & Engineering Roadmap
@@ -275,34 +296,34 @@ opensearch.ssl.verificationMode: none
 | VLAN-segmented network (4 zones, 802.1Q) | ✅ Operational |
 | Wazuh SIEM/XDR — 10 agents | ✅ Operational |
 | K8s Control Plane Sentinel (FIM + Slack) | ✅ Operational |
+| K8s Audit Logging → Wazuh Pipeline | ✅ Operational |
 | ArgoCD GitOps pipeline — App-of-Apps | ✅ Operational |
+| ArgoCD Image Updater (SSH Write-back) | ✅ Operational |
+| Kyverno Policy-as-Code (Foreach logic) | ✅ Operational |
+| Kustomize Base/Overlay Refactor | ✅ Operational |
+| Sealed Secrets (GitOps-native encryption) | ✅ Operational |
 | Two-tier observability (Prometheus/Grafana) | ✅ Operational |
-| Ansible IaC — idempotent config enforcement | ✅ Validated |
-| Terraform IaC — worker-3/4 provisioned | ✅ Applied |
+| Ansible roles refactor (Idempotent Roles) | ✅ Validated |
+| Terraform IaC — Reusable Module Abstraction | ✅ Applied |
 | GitHub Actions CI/CD (ansible-lint) | ✅ Operational |
 | Wazuh FIM centralized via agent.conf | ✅ Operational |
 | K8s NetworkPolicy — default namespace | ✅ Enforced |
+| RFC 6724 IPv4/IPv6 Conflict Resolution | ✅ Resolved |
 
 ### Active Engineering Sprints — Q2 2026
 
 | Sprint | Objective | Priority |
 |--------|-----------|----------|
-| K8s Audit Logging → Wazuh | Route kube-apiserver audit events into SIEM pipeline | High |
 | Monitoring NetworkPolicy | Extend default-deny to monitoring namespace via App-of-Apps | High |
+| Velero Backup | Implement disaster recovery with off-site S3 storage | High |
 | Ingress + cert-manager | nginx Ingress controller + automated TLS via Let's Encrypt | Medium |
 | Vaultwarden | Self-hosted password manager deployment via ArgoCD | Medium |
-| Kustomize overlays | Base + environment-specific patches for multi-env GitOps | Medium |
 
 ### Phase 3 — Backlog
 
-- Ansible roles refactor — reusable role structure replacing procedural playbooks
-- ArgoCD image updater — automated container version bumps on new image push
-- Terraform modules — reusable proxmox module abstraction
-- Sealed Secrets / External Secrets Operator — GitOps-native secret management
 - Multi-cluster federation (k3s lightweight edge cluster)
 - OPA/Gatekeeper policy enforcement
-- Velero backup and disaster recovery testing
-- Service mesh (Istio or Linkerd) for mTLS between workloads
+- Service mesh (Linkerd) for mTLS between workloads
 - SIEM correlation rules: cross-agent lateral movement detection
 
 ---
@@ -311,31 +332,43 @@ opensearch.ssl.verificationMode: none
 
 ```
 homelab/
-├── README.md
-├── kubernetes/
-│   ├── argocd-apps/
-│   │   ├── root-app.yaml
-│   │   ├── nginx-test.yaml
-│   │   ├── metallb.yaml
-│   │   └── kube-prometheus-stack.yaml
-│   └── apps/
-│       ├── nginx-test/
-│       │   ├── nginx-test.yaml
-│       │   └── network-policies-default.yaml
-│       └── metallb/
-│           └── metallb-config.yaml
+├── .github/workflows/
+│   ├── ansible-lint.yml
+│   └── wazuh-deploy.yml
 ├── ansible/
 │   ├── inventory/
 │   │   └── hosts.ini
-│   └── playbooks/
-│       └── wazuh_self_healing.yml
-└── terraform/
-    └── proxmox/
-        ├── provider.tf
-        ├── variables.tf
-        ├── main.tf
-        ├── outputs.tf
-        └── terraform.tfvars.example
+│   ├── playbooks/
+│   │   └── wazuh_self_healing.yml
+│   ├── roles/
+│   │   ├── wazuh_agent/
+│   │   └── wazuh_dashboard_config/
+│   └── ansible.cfg
+├── apps/
+│   └── disallow-privileged.yaml
+├── docs/
+│   ├── kubernetes-setup.md
+│   ├── monitoring-setup.md
+│   ├── network-setup.md
+│   ├── troubleshooting.md
+│   └── wazuh-setup.md
+├── etc/rules/
+│   └── local_rules.xml
+├── kubernetes/
+│   ├── apps/
+│   │   └── metallb/
+│   ├── argocd-apps/
+│   ├── base/
+│   │   └── nginx-test/
+│   ├── overlays/
+│   └── secrets/
+├── terraform/
+│   ├── environments/
+│   │   └── homelab/
+│   ├── modules/
+│   │   └── proxmox-vm/
+│   └── proxmox/
+└── vaultpass.txt
 ```
 
 ---
@@ -345,17 +378,17 @@ homelab/
 | Layer | Technology |
 |-------|-----------|
 | Hypervisor | Proxmox VE 8.x |
-| Container Orchestration | Kubernetes v1.32 (kubeadm) |
-| CNI | Flannel |
-| Load Balancer | MetalLB |
-| GitOps | ArgoCD (App-of-Apps) |
+| Orchestration | Kubernetes v1.32 (kubeadm) |
+| GitOps | ArgoCD (App-of-Apps), Kustomize |
+| CI/CD | GitHub Actions, ArgoCD Image Updater |
+| Security | Kyverno (Policy-as-Code), Sealed Secrets |
 | SIEM/XDR | Wazuh 4.14.3 |
-| IaC — Provisioning | Terraform (bpg/proxmox) |
-| IaC — Configuration | Ansible |
-| CI/CD | GitHub Actions |
+| IaC — Provisioning | Terraform (bpg/proxmox modules) |
+| IaC — Configuration | Ansible (Reusable Roles) |
 | Observability | kube-prometheus-stack, Grafana, Alertmanager |
+| Networking | TP-Link ER605, Netgear GS308E (802.1Q VLANs) |
 | DNS | Pi-hole |
-| Networking | TP-Link ER605, Netgear GS308E (802.1Q) |
+| CNI / LB | Flannel, MetalLB |
 
 ---
 
