@@ -19,7 +19,7 @@ I refactored `disallow-privilege.yaml` to move validation to the **Controller st
 - `disallow-privilege.yaml`: The primary hardened policy utilizing recursive loops and conditional anchors.
 
 ## Additional Links
-**LinkedIn:** `(https://www.linkedin.com/in/bryan-perez-0b23822b4/)` - Check my LinkedIn out to follow up on this project and current projects.
+**LinkedIn:** (https://www.linkedin.com/in/bryan-perez-0b23822b4/) - Check my LinkedIn out to follow up on this project and current projects.
 
 ---
 
