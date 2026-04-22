@@ -56,7 +56,7 @@ No configuration exists outside of version control. No manual changes are made t
 | Worker | k8s-worker-3 | 192.168.20.22 | 6GB | enode-b |
 | Worker | k8s-worker-4 | 192.168.20.23 | 6GB | enode-c |
 
-**K8s Version:** v1.32.13 — **CNI:** Flannel (`10.244.0.0/16`) — **LB:** MetalL
+**K8s Version:** v1.32.13 — **CNI:** Flannel (`10.244.0.0/16`) — **LB:** MetalLB
 
 The 3-node control plane configuration ensures **etcd quorum** is maintained through single-node failure. With one master down, the remaining two nodes hold quorum (2/3) and the cluster continues scheduling workloads with zero interruption. Control plane VMs are distributed across all three physical hosts — no physical host is a single point of failure for the control plane.
 
