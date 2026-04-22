@@ -20,7 +20,7 @@ No configuration exists outside of version control. No manual changes are made t
 
 ### Hardware Inventory
 
-| Node | Machine | CPU | RAM | Storage | IP |
+| Node | Machine | CPU | RAM | Storage | IP 
 |------|---------|-----|-----|---------|-----|
 | enode-a | HP EliteDesk G6 Mini | Intel Core i5-10500T | 32GB DDR4 | 1TB NVMe | 192.168.40.10 |
 | enode-b | HP EliteDesk G5 Mini | Intel Core i5-9500T | 16GB DDR4 | 1TB NVMe | 192.168.40.11 |
