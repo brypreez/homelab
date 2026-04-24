@@ -12,7 +12,7 @@
 
 This repository is the single source of truth for a self-hosted private cloud environment running on bare-metal Proxmox VE. The infrastructure mirrors enterprise production standards: HA Kubernetes control plane, GitOps-managed workloads via ArgoCD App-of-Apps, multi-tier SIEM/XDR security orchestration, VLAN-segmented networking, and full observability.
 
-No configuration exists outsid of version control. No manual changes are made to production without a documented change record.
+No configuration exists outside f version control. No manual changes are made to production without a documented change record.
 
 ---
 
