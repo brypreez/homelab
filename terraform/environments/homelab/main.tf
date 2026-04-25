@@ -24,4 +24,4 @@ module "k8s_workers" {
   ssh_public_key = var.ssh_public_key
 }
 
-# - Currently OOP
+# - Currently
