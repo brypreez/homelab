@@ -23,5 +23,3 @@ module "k8s_workers" {
   vm_user        = var.vm_user
   ssh_public_key = var.ssh_public_key
 }
-
-# - Currently
