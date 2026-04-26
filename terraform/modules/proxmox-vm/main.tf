@@ -57,6 +57,10 @@ resource "proxmox_virtual_environment_vm" "vm" {
     }
   }
 
+  agent {
+    enabled = false
+  }
+
   lifecycle {
     ignore_changes = [network_device]
   }

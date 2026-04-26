@@ -41,7 +41,7 @@ variable "dns_server" {
 }
 
 variable "k8s_workers" {
-  description = "List of K8s worker node definitions"
+  description = "All K8s nodes to provision"
   type = list(object({
     name          = string
     vmid          = number
@@ -54,8 +54,58 @@ variable "k8s_workers" {
   }))
   default = [
     {
-      name          = "k8s-worker-3"
+      name          = "k8s-master-1"
+      vmid          = 201
+      ip            = "192.168.20.10"
+      cores         = 4
+      memory        = 8192
+      disk          = "40G"
+      node          = "enode-a"
+      template_vmid = 9000
+    },
+    {
+      name          = "k8s-master-2"
+      vmid          = 202
+      ip            = "192.168.20.11"
+      cores         = 4
+      memory        = 8192
+      disk          = "40G"
+      node          = "enode-b"
+      template_vmid = 9001
+    },
+    {
+      name          = "k8s-master-3"
+      vmid          = 203
+      ip            = "192.168.20.12"
+      cores         = 4
+      memory        = 8192
+      disk          = "40G"
+      node          = "enode-c"
+      template_vmid = 9002
+    },
+    {
+      name          = "k8s-worker-1"
+      vmid          = 204
+      ip            = "192.168.20.20"
+      cores         = 4
+      memory        = 6144
+      disk          = "50G"
+      node          = "enode-a"
+      template_vmid = 9000
+    },
+    {
+      name          = "k8s-worker-2"
       vmid          = 205
+      ip            = "192.168.20.21"
+      cores         = 4
+      memory        = 6144
+      disk          = "50G"
+      node          = "enode-b"
+      template_vmid = 9001
+    },
+    {
+      name          = "k8s-worker-3"
+      vmid          = 206
       ip            = "192.168.20.22"
       cores         = 4
       memory        = 6144
@@ -65,7 +115,7 @@ variable "k8s_workers" {
     },
     {
       name          = "k8s-worker-4"
-      vmid          = 206
+      vmid          = 207
       ip            = "192.168.20.23"
       cores         = 4
       memory        = 6144
