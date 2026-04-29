@@ -332,3 +332,4 @@ rm /etc/kubernetes/manifests/test-file
 ```
 
 Slack alert should appear in `#security-alerts` within 30 seconds.
+
