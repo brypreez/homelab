@@ -330,6 +330,4 @@ sed "s|<SLACK_WEBHOOK_URL_PLACEHOLDER>|$SLACK_WEBHOOK_URL|g" \
 touch /etc/kubernetes/manifests/test-file
 rm /etc/kubernetes/manifests/test-file
 ```
-
 Slack alert should appear in `#security-alerts` within 30 seconds.
-
