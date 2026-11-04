@@ -310,7 +310,7 @@ opensearch.ssl.verificationMode: none
 | K8s NetworkPolicy — default namespace | ✅ Enforced |
 | RFC 6724 IPv4/IPv6 Conflict Resolution | ✅ Resolved |
 
-### Active Engineering Sprints — Q2 2026
+### Active Engineering Sprints — Q4 2026
 
 | Sprint | Objective | Priority |
 |--------|-----------|----------|
