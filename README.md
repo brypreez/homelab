@@ -368,7 +368,7 @@ homelab/
 │   ├── modules/
 │   │   └── proxmox-vm/
 │   └── proxmox/
-└── vaultpass.txt
+└── vaultpassexample.txt
 ```
 
 ---
